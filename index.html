@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>座標查詢：地圖、海拔與天氣 (雙格式支援)</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background-color: #f4f7f6; color: #333; }
+        h2 { text-align: center; }
+        .search-box { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        input { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; width: 450px; }
+        button { padding: 10px 20px; background-color: #4285F4; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; transition: background-color 0.3s; }
+        button:hover { background-color: #3367D6; }
+        .main-container { display: flex; gap: 20px; height: 75vh; min-height: 600px; }
+        #map { flex: 2; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); background-color: #e5e3df; }
+        #info-panel { flex: 1; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow-y: auto; }
+        .info-section { margin-bottom: 20px; }
+        .info-section h3 { margin-top: 0; color: #4285F4; border-bottom: 2px solid #f0f0f0; padding-bottom: 5px; }
+        
+        .weather-day-details { border-bottom: 1px solid #eee; padding: 5px 0; }
+        .weather-day-details:last-child { border-bottom: none; }
+        .weather-day-summary { display: flex; justify-content: space-between; padding: 10px; cursor: pointer; list-style: none; border-radius: 6px; transition: background-color 0.2s; }
+        .weather-day-summary::-webkit-details-marker { display: none; }
+        .weather-day-summary:hover { background-color: #f8f9fa; }
+        .weather-day-summary span { flex: 1; text-align: center; }
+        .weather-day-summary span:first-child { text-align: left; }
+        .weather-day-summary span:last-child { text-align: right; }
+        
+        .weather-day-extra { padding: 15px 10px; background-color: #fdfdfd; border-left: 3px solid #4285F4; margin-top: 5px; font-size: 14px; }
+        .extra-stats { display: flex; justify-content: space-between; margin-bottom: 15px; color: #555; font-weight: bold; }
+        .hourly-scroll { display: flex; overflow-x: auto; gap: 15px; padding-bottom: 10px; }
+        .hourly-item { min-width: 60px; text-align: center; background: #fff; border: 1px solid #eee; padding: 10px 5px; border-radius: 6px; }
+        .hourly-item div { margin: 3px 0; }
+        .error { color: red; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h2>📍 座標環境查詢系統</h2>
+
+    <div class="search-box">
+        <input type="text" id="coordInput" placeholder="支援小數點 (24.39, 120.78) 或度分秒 (24°21'25.8&quot;N 120°45'32.3&quot;E)">
+        <button onclick="searchLocation()">查詢位置</button>
+    </div>
+
+    <div class="main-container">
+        <div id="map"></div>
+        <div id="info-panel">
+            <div class="info-section">
+                <h3>⛰️ 海拔資訊</h3>
+                <div id="elevation-data">請輸入座標以查詢...</div>
+            </div>
+            
+            <div class="info-section">
+                <h3>🌤️ 一週天氣與詳細預測 (點擊展開)</h3>
+                <div id="weather-data">請輸入座標以查詢...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let map; let marker; let elevator;
+
+        function initMap() {
+            const defaultLoc = { lat: 24.161, lng: 120.646 };
+            map = new google.maps.Map(document.getElementById("map"), { zoom: 12, center: defaultLoc });
+            marker = new google.maps.Marker({ position: defaultLoc, map: map });
+            elevator = new google.maps.ElevationService();
+        }
+
+        // 核心功能：智慧解析座標字串
+        function parseCoordinates(input) {
+            // 1. 嘗試解析「度分秒 (DMS)」格式
+            // 正規表示式：抓取 數字+度, 數字+分, 數字+秒, 以及 N/S/E/W
+            const dmsRegex = /(\d+)[°\s]+(\d+)['’\s]+([\d\.]+)[″"”\s]+([NSEW])/gi;
+            let matches = [...input.matchAll(dmsRegex)];
+
+            if (matches.length === 2) {
+                let lat = null, lng = null;
+                
+                matches.forEach(match => {
+                    let deg = parseFloat(match[1]);
+                    let min = parseFloat(match[2]);
+                    let sec = parseFloat(match[3]);
+                    let dir = match[4].toUpperCase();
+
+                    // 套用轉換公式
+                    let decimalDegrees = deg + (min / 60) + (sec / 3600);
+                    
+                    // 南緯或西經設為負數
+                    if (dir === 'S' || dir === 'W') {
+                        decimalDegrees *= -1;
+                    }
+
+                    if (dir === 'N' || dir === 'S') lat = decimalDegrees;
+                    if (dir === 'E' || dir === 'W') lng = decimalDegrees;
+                });
+
+                if (lat !== null && lng !== null) return { lat, lng };
+            }
+
+            // 2. 如果不是度分秒，則嘗試解析「一般十進位」格式
+            // 替換多餘空格為逗號，確保能正確切割
+            let cleanInput = input.trim().replace(/\s*,\s*/g, ',').replace(/\s+/g, ',');
+            let parts = cleanInput.split(',');
+
+            if (parts.length === 2) {
+                let lat = parseFloat(parts[0]);
+                let lng = parseFloat(parts[1]);
+                if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
+            }
+
+            // 都無法解析則回傳 null
+            return null;
+        }
+
+        function searchLocation() {
+            const coordStr = document.getElementById('coordInput').value;
+            const location = parseCoordinates(coordStr);
+
+            if (!location) {
+                alert("無法解析座標！請檢查格式是否正確，支援小數點或度分秒格式。");
+                return;
+            }
+
+            map.setCenter(location); map.setZoom(14); marker.setPosition(location);
+            getElevation(location); getWeather(location.lat, location.lng);
+        }
+
+        function getElevation(location) {
+            const elDiv = document.getElementById('elevation-data');
+            elDiv.innerHTML = "載入中...";
+            elevator.getElevationForLocations({ locations: [location] })
+            .then(({ results }) => {
+                if (results[0]) {
+                    elDiv.innerHTML = `<p>該座標的海拔高度為：<strong>${results[0].elevation.toFixed(2)} 公尺</strong></p>`;
+                } else { elDiv.innerHTML = "<span class='error'>找不到該位置的海拔資料。</span>"; }
+            })
+            .catch((e) => { elDiv.innerHTML = `<span class='error'>海拔查詢失敗: ${e}</span>`; });
+        }
+
+        async function getWeather(lat, lng) {
+            const weatherDiv = document.getElementById('weather-data');
+            weatherDiv.innerHTML = "天氣資料載入中...";
+
+            try {
+                const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max,windspeed_10m_max,winddirection_10m_dominant&hourly=temperature_2m,precipitation_probability,weathercode&timezone=auto`;
+                
+                const response = await fetch(apiUrl);
+                const data = await response.json();
+
+                if (data.error) {
+                    weatherDiv.innerHTML = `<span class='error'>無法獲取該座標的天氣。</span>`; return;
+                }
+
+                const daily = data.daily;
+                const hourly = data.hourly;
+                let html = '';
+
+                for (let i = 0; i < 7; i++) {
+                    const date = daily.time[i];
+                    const maxTemp = daily.temperature_2m_max[i];
+                    const minTemp = daily.temperature_2m_min[i];
+                    const code = daily.weathercode[i];
+                    const pop = daily.precipitation_probability_max[i];
+                    const windSpeed = daily.windspeed_10m_max[i];
+                    const windDirDegree = daily.winddirection_10m_dominant[i];
+                    
+                    const weatherDesc = getWeatherDescription(code).split(' ')[1];
+                    const weatherEmoji = getWeatherDescription(code).split(' ')[0];
+                    const windDir = getWindDirection(windDirDegree);
+
+                    let hourlyHtml = '';
+                    const startIdx = i * 24; 
+                    
+                    for (let j = startIdx; j < startIdx + 24; j += 3) {
+                        const timeString = hourly.time[j].split('T')[1];
+                        const hTemp = hourly.temperature_2m[j];
+                        const hPop = hourly.precipitation_probability[j];
+                        const hEmoji = getWeatherDescription(hourly.weathercode[j]).split(' ')[0];
+                        
+                        hourlyHtml += `
+                            <div class="hourly-item">
+                                <div>${timeString}</div>
+                                <div>${hEmoji}</div>
+                                <div><strong>${hTemp}°</strong></div>
+                                <div style="color:#007BFF; font-size:12px;">${hPop}%</div>
+                            </div>
+                        `;
+                    }
+
+                    html += `
+                        <details class="weather-day-details">
+                            <summary class="weather-day-summary">
+                                <span>📅 ${date}</span>
+                                <span>${weatherEmoji} ${weatherDesc}</span>
+                                <span>🌡️ ${minTemp}° - ${maxTemp}°</span>
+                            </summary>
+                            <div class="weather-day-extra">
+                                <div class="extra-stats">
+                                    <span>☔ 降雨機率: ${pop}%</span>
+                                    <span>💨 風速: ${windSpeed} km/h</span>
+                                    <span>🧭 風向: ${windDir} (${windDirDegree}°)</span>
+                                </div>
+                                <div class="hourly-scroll">
+                                    ${hourlyHtml}
+                                </div>
+                            </div>
+                        </details>
+                    `;
+                }
+
+                weatherDiv.innerHTML = html;
+
+            } catch (error) {
+                weatherDiv.innerHTML = `<span class='error'>天氣查詢發生錯誤。</span>`;
+            }
+        }
+
+        function getWindDirection(degree) {
+            const directions = ['北', '東北', '東', '東南', '南', '西南', '西', '西北'];
+            return directions[Math.round(degree / 45) % 8];
+        }
+
+        function getWeatherDescription(code) {
+            if (code === 0) return '☀️ 晴朗';
+            if (code === 1 || code === 2 || code === 3) return '⛅ 多雲';
+            if (code >= 45 && code <= 48) return '🌫️ 有霧';
+            if (code >= 51 && code <= 67) return '🌧️ 有雨';
+            if (code >= 71 && code <= 77) return '❄️ 下雪';
+            if (code >= 80 && code <= 82) return '🌦️ 陣雨';
+            if (code >= 95 && code <= 99) return '⛈️ 雷雨';
+            return '❓ 未知';
+        }
+    </script>
+
+    <script async
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAnysqIbMI4A13sjayaJEW1UmyyQef-xMw&callback=initMap">
+    </script>
+</body>
+</html>
