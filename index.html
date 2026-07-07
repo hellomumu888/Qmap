@@ -3,15 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>座標查詢：地圖、海拔與天氣</title>
+    <title>座標查詢：地圖、海拔與天氣 (快速選單版)</title>
     <style>
         /* 基礎設定 */
         * { box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background-color: #f4f7f6; color: #333; }
         h2 { text-align: center; }
         
-        /* 搜尋區塊 */
-        .search-box { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        /* 搜尋區塊與選單 */
+        .search-box { display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 20px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); flex-wrap: wrap; }
+        select { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; background-color: #fdfdfd; cursor: pointer; }
         input { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; width: 450px; max-width: 100%; }
         button { padding: 10px 20px; background-color: #4285F4; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; transition: background-color 0.3s; white-space: nowrap; }
         button:hover { background-color: #3367D6; }
@@ -40,12 +41,11 @@
         .hourly-item div { margin: 3px 0; }
         .error { color: red; font-weight: bold; }
 
-        /* RWD 響應式設定 */
+        /* RWD 手機直式排版響應式設定 */
         @media (max-width: 768px) {
             body { margin: 10px; }
-            .search-box { flex-direction: column; }
-            input { width: 100%; }
-            button { width: 100%; }
+            .search-box { flex-direction: column; align-items: stretch; }
+            select, input, button { width: 100%; }
             .main-container { flex-direction: column; height: auto; min-height: auto; }
             #map { height: 400px; flex: none; }
             #info-panel { height: auto; flex: none; overflow-y: visible; }
@@ -55,9 +55,19 @@
 </head>
 <body>
 
-    <h2>📍 座標查詢：地圖、海拔與天氣</h2>
+    <h2>📍 座標環境查詢系統</h2>
 
     <div class="search-box">
+        <select id="quickSelect" onchange="handleQuickSelect()">
+            <option value="">快速選擇地點...</option>
+            <option value="24°22'12.8&quot;N 120°47'57.5&quot;E">大彎道</option>
+            <option value="24°22'45.5&quot;N 120°46'04.5&quot;E">木材場</option>
+            <option value="24°22'10.6&quot;N 120°45'31.4&quot;E">雅聞</option>
+            <option value="24°23'12.8&quot;N 120°48'42.5&quot;E">薑麻園</option>
+            <option value="24°21'25.8&quot;N 120°45'32.3&quot;E">觀音寺</option>
+            <option value="24°26'54.1&quot;N 120°47'27.3&quot;E">銅鑼慈惠寺</option>
+        </select>
+        
         <input type="text" id="coordInput" placeholder="輸入座標，或直接點擊下方地圖">
         <button onclick="searchLocation()">查詢位置</button>
     </div>
@@ -80,9 +90,23 @@
     <script>
         let map; let marker; let elevator;
 
+        // 🌟 新增：處理快速選單變更的事件
+        function handleQuickSelect() {
+            const selectElement = document.getElementById('quickSelect');
+            const selectedValue = selectElement.value;
+            
+            if (selectedValue) {
+                // 將選取的座標填入輸入框
+                document.getElementById('coordInput').value = selectedValue;
+                // 自動執行查詢
+                searchLocation();
+            }
+        }
+
         function initMap() {
-            const defaultLoc = { lat: 24.161, lng: 120.646 };
-            map = new google.maps.Map(document.getElementById("map"), { zoom: 12, center: defaultLoc });
+            // 預設位置 (使用列表中的「觀音寺」附近)
+            const defaultLoc = { lat: 24.357, lng: 120.759 };
+            map = new google.maps.Map(document.getElementById("map"), { zoom: 11, center: defaultLoc });
             marker = new google.maps.Marker({ position: defaultLoc, map: map });
             elevator = new google.maps.ElevationService();
 
@@ -94,6 +118,9 @@
                 map.panTo(clickedLocation);
                 marker.setPosition(clickedLocation);
                 document.getElementById('coordInput').value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+                
+                // 🌟 新增：使用者手動點擊地圖時，將選單重置回「快速選擇地點...」
+                document.getElementById('quickSelect').selectedIndex = 0;
 
                 const locationObj = { lat: lat, lng: lng };
                 getElevation(locationObj);
@@ -140,7 +167,8 @@
                 return;
             }
 
-            map.panTo(location); map.setZoom(14); marker.setPosition(location);
+            map.panTo(location); map.setZoom(15); // 將縮放比例拉近一點 (Zoom:15)，看得更清楚
+            marker.setPosition(location);
             getElevation(location); getWeather(location.lat, location.lng);
         }
 
@@ -174,16 +202,13 @@
                 const hourly = data.hourly;
                 let html = '';
 
-                // 🌟 新增：用於轉換星期幾的陣列
                 const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
 
                 for (let i = 0; i < 7; i++) {
-                    const dateStr = daily.time[i]; // 例如 "2026-07-07"
-                    
-                    // 🌟 新增：解析日期並取得星期幾
+                    const dateStr = daily.time[i]; 
                     const dateObj = new Date(dateStr);
                     const dayOfWeek = dayNames[dateObj.getDay()];
-                    const displayDate = `${dateStr} (${dayOfWeek})`; // 組合字串
+                    const displayDate = `${dateStr} (${dayOfWeek})`;
 
                     const maxTemp = daily.temperature_2m_max[i];
                     const minTemp = daily.temperature_2m_min[i];
@@ -215,11 +240,10 @@
                         `;
                     }
 
-                    // 🌟 修改：替換為 displayDate 變數
                     html += `
                         <details class="weather-day-details">
                             <summary class="weather-day-summary">
-                                <span>${displayDate}</span>
+                                <span>📅 ${displayDate}</span>
                                 <span>${weatherEmoji} ${weatherDesc}</span>
                                 <span>🌡️ ${minTemp}° - ${maxTemp}°</span>
                             </summary>
