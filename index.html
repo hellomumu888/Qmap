@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>海拔與天氣查詢</title>
+    <title>座標查詢：地圖、海拔與天氣</title>
     <style>
         /* 基礎設定 */
         * { box-sizing: border-box; }
@@ -16,7 +16,7 @@
         button { padding: 10px 20px; background-color: #4285F4; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; transition: background-color 0.3s; white-space: nowrap; }
         button:hover { background-color: #3367D6; }
         
-        /* 主要內容佈局 (預設為電腦版橫式) */
+        /* 主要內容佈局 */
         .main-container { display: flex; gap: 20px; height: 75vh; min-height: 600px; }
         #map { flex: 2; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); background-color: #e5e3df; cursor: crosshair; }
         #info-panel { flex: 1; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow-y: auto; }
@@ -40,19 +40,14 @@
         .hourly-item div { margin: 3px 0; }
         .error { color: red; font-weight: bold; }
 
-        /* RWD 手機直式排版響應式設定 */
+        /* RWD 響應式設定 */
         @media (max-width: 768px) {
             body { margin: 10px; }
             .search-box { flex-direction: column; }
             input { width: 100%; }
             button { width: 100%; }
-            
-            /* 將左右並排改為上下並排 */
             .main-container { flex-direction: column; height: auto; min-height: auto; }
-            
-            /* 給予地圖固定高度，避免在 Flex column 中縮小 */
             #map { height: 400px; flex: none; }
-            
             #info-panel { height: auto; flex: none; overflow-y: visible; }
             .extra-stats { flex-direction: column; gap: 8px; }
         }
@@ -60,7 +55,7 @@
 </head>
 <body>
 
-    <h2>📍 Google Map 海拔與天氣查詢</h2>
+    <h2>📍 座標查詢：地圖、海拔與天氣</h2>
 
     <div class="search-box">
         <input type="text" id="coordInput" placeholder="輸入座標，或直接點擊下方地圖">
@@ -76,7 +71,7 @@
             </div>
             
             <div class="info-section">
-                <h3>🌤️ 一週天氣與詳細預測 (點擊展開)</h3>
+                <h3>🌤️ 一週天氣預測 (點擊展開)</h3>
                 <div id="weather-data">請輸入座標或點擊地圖以查詢...</div>
             </div>
         </div>
@@ -86,27 +81,20 @@
         let map; let marker; let elevator;
 
         function initMap() {
-            // 預設位置 (台灣台中西屯區)
             const defaultLoc = { lat: 24.161, lng: 120.646 };
             map = new google.maps.Map(document.getElementById("map"), { zoom: 12, center: defaultLoc });
             marker = new google.maps.Marker({ position: defaultLoc, map: map });
             elevator = new google.maps.ElevationService();
 
-            // 🌟 新增：地圖點擊監聽器
             map.addListener("click", (mapsMouseEvent) => {
-                // 取得點擊位置的經緯度
                 const clickedLocation = mapsMouseEvent.latLng;
                 const lat = clickedLocation.lat();
                 const lng = clickedLocation.lng();
 
-                // 1. 更新地圖視角與標記
                 map.panTo(clickedLocation);
                 marker.setPosition(clickedLocation);
-
-                // 2. 將座標反向填回上方的輸入框 (保留 5 位小數)
                 document.getElementById('coordInput').value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 
-                // 3. 觸發查詢 API
                 const locationObj = { lat: lat, lng: lng };
                 getElevation(locationObj);
                 getWeather(lat, lng);
@@ -186,8 +174,17 @@
                 const hourly = data.hourly;
                 let html = '';
 
+                // 🌟 新增：用於轉換星期幾的陣列
+                const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
+
                 for (let i = 0; i < 7; i++) {
-                    const date = daily.time[i];
+                    const dateStr = daily.time[i]; // 例如 "2026-07-07"
+                    
+                    // 🌟 新增：解析日期並取得星期幾
+                    const dateObj = new Date(dateStr);
+                    const dayOfWeek = dayNames[dateObj.getDay()];
+                    const displayDate = `${dateStr} (${dayOfWeek})`; // 組合字串
+
                     const maxTemp = daily.temperature_2m_max[i];
                     const minTemp = daily.temperature_2m_min[i];
                     const code = daily.weathercode[i];
@@ -218,10 +215,11 @@
                         `;
                     }
 
+                    // 🌟 修改：替換為 displayDate 變數
                     html += `
                         <details class="weather-day-details">
                             <summary class="weather-day-summary">
-                                <span>📅 ${date}</span>
+                                <span>${displayDate}</span>
                                 <span>${weatherEmoji} ${weatherDesc}</span>
                                 <span>🌡️ ${minTemp}° - ${maxTemp}°</span>
                             </summary>
