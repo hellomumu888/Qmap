@@ -104,27 +104,55 @@
         }
 
         function initMap() {
-            // 預設位置 (使用列表中的「觀音寺」附近)
+            // 預設位置 (觀音寺附近)
             const defaultLoc = { lat: 24.357, lng: 120.759 };
             map = new google.maps.Map(document.getElementById("map"), { zoom: 11, center: defaultLoc });
             marker = new google.maps.Marker({ position: defaultLoc, map: map });
             elevator = new google.maps.ElevationService();
 
-            map.addListener("click", (mapsMouseEvent) => {
-                const clickedLocation = mapsMouseEvent.latLng;
-                const lat = clickedLocation.lat();
-                const lng = clickedLocation.lng();
-
-                map.panTo(clickedLocation);
-                marker.setPosition(clickedLocation);
-                document.getElementById('coordInput').value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-                
-                // 🌟 新增：使用者手動點擊地圖時，將選單重置回「快速選擇地點...」
-                document.getElementById('quickSelect').selectedIndex = 0;
-
+            // 獨立出一個「更新位置與查詢」的共用函式，讓左鍵、右鍵、街景都能呼叫它
+            function updateLocationData(lat, lng, isStreetView = false) {
                 const locationObj = { lat: lat, lng: lng };
+                
+                // 如果不是在街景模式，才需要移動一般地圖的圖釘
+                if (!isStreetView) {
+                    map.panTo(locationObj);
+                    marker.setPosition(locationObj);
+                }
+
+                // 更新輸入框
+                document.getElementById('coordInput').value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+                document.getElementById('quickSelect').selectedIndex = 0; // 重置快速選單
+
+                // 觸發海拔與天氣查詢
                 getElevation(locationObj);
                 getWeather(lat, lng);
+            }
+
+            // 1. 監聽【滑鼠左鍵】點擊地圖
+            map.addListener("click", (mapsMouseEvent) => {
+                const lat = mapsMouseEvent.latLng.lat();
+                const lng = mapsMouseEvent.latLng.lng();
+                updateLocationData(lat, lng);
+            });
+
+            // 2. 🌟 新增：監聽【滑鼠右鍵】點擊地圖
+            map.addListener("rightclick", (mapsMouseEvent) => {
+                const lat = mapsMouseEvent.latLng.lat();
+                const lng = mapsMouseEvent.latLng.lng();
+                updateLocationData(lat, lng);
+            });
+
+            // 3. 🌟 新增：監聽【街景/全景模式】的位置移動
+            const panorama = map.getStreetView();
+            panorama.addListener("position_changed", () => {
+                const currentPos = panorama.getPosition();
+                if (currentPos) {
+                    const lat = currentPos.lat();
+                    const lng = currentPos.lng();
+                    // 傳入 true 表示現在是街景模式，不要移動地圖圖釘以免干擾畫面
+                    updateLocationData(lat, lng, true); 
+                }
             });
         }
 
