@@ -19,7 +19,7 @@
         button { padding: 10px 20px; background-color: #4285F4; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; transition: background-color 0.3s; white-space: nowrap; }
         button:hover { background-color: #3367D6; }
         
-        /* 🌟 新增：自訂地點管理區塊 */
+        /* 自訂地點管理區塊 */
         .custom-manager { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
         .custom-manager summary { font-weight: bold; cursor: pointer; color: #00796B; outline: none; }
         .manager-form { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
@@ -37,7 +37,7 @@
         #map { flex: 2; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); background-color: #e5e3df; cursor: crosshair; overflow: hidden; position: relative; }
         #info-panel { flex: 1; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow-y: auto; }
         
-        /* 🌟 新增：分享按鈕區塊 */
+        /* 分享按鈕區塊 */
         .share-section { display: flex; gap: 10px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #f0f0f0; }
         .share-btn { flex: 1; display: flex; justify-content: center; align-items: center; gap: 5px; font-weight: bold; }
         .line-btn { background-color: #06C755; }
@@ -81,13 +81,13 @@
 </head>
 <body>
 
-    <h2>📍 座標環境查詢系統 v0.99a</h2>
+    <h2>📍 座標環境查詢系統</h2>
 
     <details class="custom-manager">
         <summary>⚙️ 新增 / 管理我的自訂地點</summary>
         <div class="manager-form">
             <input type="text" id="newName" placeholder="地點名稱 (例如：秘密基地)">
-            <input type="text" id="newCoord" placeholder="座標 (例如：24.16, 120.64)">
+            <input type="text" id="newCoord" placeholder="座標支援小數或度分秒 (含雙引號)">
             <button onclick="addCustomLocation()">➕ 加入選單</button>
         </div>
         <ul id="customLocList" class="custom-list">
@@ -98,7 +98,7 @@
         <select id="quickSelect" onchange="handleQuickSelect()">
             <option value="">快速選擇地點...</option>
             
-            <optgroup label="⭐ 自訂地點" id="myCustomGroup">
+            <optgroup label="⭐ 我的專屬地點" id="myCustomGroup">
                 </optgroup>
             
             <optgroup label="北部">
@@ -150,7 +150,7 @@
         let currentShareLat = 24.357; 
         let currentShareLng = 120.759;
 
-        // 🌟 新增：管理 localStorage 自訂地點的邏輯
+        // 管理 localStorage 自訂地點
         let myLocations = JSON.parse(localStorage.getItem('myCustomLocations')) || [];
 
         function renderCustomLocations() {
@@ -167,15 +167,19 @@
             }
 
             myLocations.forEach((loc, index) => {
+                // 🌟 關鍵修復：將單雙引號轉換為 HTML 實體 (Escape)，避免破壞 HTML 屬性
+                const safeCoord = loc.coord.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                const safeName = loc.name.replace(/</g, '&lt;').replace(/>/g, '&gt;'); // 防 XSS
+
                 // 更新管理清單
                 listEl.innerHTML += `
                     <li>
-                        <span><strong>${loc.name}</strong> - ${loc.coord}</span>
+                        <span><strong>${safeName}</strong> - ${safeCoord}</span>
                         <button class="delete-btn" onclick="deleteCustomLocation(${index})">刪除</button>
                     </li>
                 `;
                 // 更新下拉選單
-                groupEl.innerHTML += `<option value="${loc.coord}">${loc.name}</option>`;
+                groupEl.innerHTML += `<option value="${safeCoord}">${safeName}</option>`;
             });
         }
 
@@ -215,8 +219,7 @@
         // 頁面載入時先渲染一次自訂清單
         document.addEventListener("DOMContentLoaded", renderCustomLocations);
 
-
-        // 🌟 新增：分享功能邏輯
+        // 分享功能邏輯
         function getShareUrl() {
             return `https://www.google.com/maps?q=${currentShareLat},${currentShareLng}`;
         }
@@ -224,13 +227,11 @@
         function shareToLine() {
             const mapUrl = getShareUrl();
             const text = encodeURIComponent(`快來看看這個地點！\n`);
-            // LINE 專用分享連結
             window.open(`https://line.me/R/msg/text/?${text}${encodeURIComponent(mapUrl)}`, '_blank');
         }
 
         function shareNative() {
             const mapUrl = getShareUrl();
-            // 檢查瀏覽器是否支援 Web Share API (大部分手機瀏覽器與現代桌面版皆支援)
             if (navigator.share) {
                 navigator.share({
                     title: '分享座標位置',
@@ -238,7 +239,6 @@
                     url: mapUrl
                 }).catch(console.error);
             } else {
-                // 不支援時的替代方案：自動複製網址
                 navigator.clipboard.writeText(mapUrl).then(() => {
                     alert('您的裝置不支援原生分享面板。\nGoogle Maps 連結已為您複製，您可以直接貼上至 Messenger 或 IG！');
                 });
@@ -284,7 +284,6 @@
             function updateLocationData(lat, lng, isStreetView = false) {
                 const locationObj = { lat: lat, lng: lng };
                 
-                // 🌟 更新全域變數供分享功能使用
                 currentShareLat = lat;
                 currentShareLng = lng;
 
@@ -330,7 +329,7 @@
             });
         }
 
-        // --- 以下為解析與 API 呼叫邏輯 ---
+        // 解析座標字串
         function parseCoordinates(input) {
             const dmsRegex = /(\d+)[°\s]+(\d+)['’\s]+([\d\.]+)[″"”\s]+([NSEW])/gi;
             let matches = [...input.matchAll(dmsRegex)];
@@ -370,7 +369,6 @@
                 return;
             }
 
-            // 🌟 更新全域變數供分享功能使用
             currentShareLat = location.lat;
             currentShareLng = location.lng;
 
@@ -491,7 +489,7 @@
     </script>
 
     <script async
-        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAnysqIbMI4A13sjayaJEW1UmyyQef-xMw&callback=initMap">
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAnysqIbMI4A13sjayaJEW1UmyyQef-xM&callback=initMap">
     </script>
 </body>
 </html>
