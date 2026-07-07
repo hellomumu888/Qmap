@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>座標查詢：地圖、海拔與天氣 (快速選單版)</title>
+    <title>座標查詢：地圖、海拔與天氣 (終極街景版)</title>
     <style>
         /* 基礎設定 */
         * { box-sizing: border-box; }
@@ -19,7 +19,7 @@
         
         /* 主要內容佈局 */
         .main-container { display: flex; gap: 20px; height: 75vh; min-height: 600px; }
-        #map { flex: 2; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); background-color: #e5e3df; cursor: crosshair; }
+        #map { flex: 2; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); background-color: #e5e3df; cursor: crosshair; overflow: hidden; position: relative; }
         #info-panel { flex: 1; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); overflow-y: auto; }
         
         /* 資訊區塊樣式 */
@@ -41,6 +41,25 @@
         .hourly-item div { margin: 3px 0; }
         .error { color: red; font-weight: bold; }
 
+        /* 🌟 新增：街景模式複製座標框的樣式 */
+        #street-view-coord-box {
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 15px;
+            margin-top: 10px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            transition: background-color 0.2s;
+            display: none; /* 預設隱藏 */
+            z-index: 1000;
+        }
+        #street-view-coord-box:hover {
+            background-color: rgba(0, 0, 0, 0.9);
+        }
+
         /* RWD 手機直式排版響應式設定 */
         @media (max-width: 768px) {
             body { margin: 10px; }
@@ -55,7 +74,7 @@
 </head>
 <body>
 
-    <h2>📍 座標環境查詢系統</h2>
+    <h2>📍 座標環境查詢系統 v.098</h2>
 
     <div class="search-box">
         <select id="quickSelect" onchange="handleQuickSelect()">
@@ -88,73 +107,100 @@
     </div>
 
     <script>
-        let map; let marker; let elevator;
+        let map; let marker; let elevator; let streetViewCoordBox;
 
-        // 🌟 新增：處理快速選單變更的事件
         function handleQuickSelect() {
             const selectElement = document.getElementById('quickSelect');
             const selectedValue = selectElement.value;
-            
             if (selectedValue) {
-                // 將選取的座標填入輸入框
                 document.getElementById('coordInput').value = selectedValue;
-                // 自動執行查詢
                 searchLocation();
             }
         }
 
         function initMap() {
-            // 預設位置 (觀音寺附近)
             const defaultLoc = { lat: 24.357, lng: 120.759 };
             map = new google.maps.Map(document.getElementById("map"), { zoom: 11, center: defaultLoc });
             marker = new google.maps.Marker({ position: defaultLoc, map: map });
             elevator = new google.maps.ElevationService();
 
-            // 獨立出一個「更新位置與查詢」的共用函式，讓左鍵、右鍵、街景都能呼叫它
+            // 🌟 1. 建立街景專用的浮動複製方框
+            streetViewCoordBox = document.createElement('div');
+            streetViewCoordBox.id = 'street-view-coord-box';
+            streetViewCoordBox.title = '點擊即可複製座標';
+            
+            // 🌟 2. 將方框加入到街景模式的「頂部中央」控制列
+            const panorama = map.getStreetView();
+            panorama.controls[google.maps.ControlPosition.TOP_CENTER].push(streetViewCoordBox);
+
+            // 🌟 3. 實作點擊複製功能
+            streetViewCoordBox.addEventListener('click', () => {
+                const textToCopy = streetViewCoordBox.dataset.rawCoords;
+                navigator.clipboard.writeText(textToCopy).then(() => {
+                    const originalText = streetViewCoordBox.innerHTML;
+                    streetViewCoordBox.innerHTML = '✅ 座標已複製！';
+                    streetViewCoordBox.style.backgroundColor = '#4285F4'; // 變換顏色給予視覺回饋
+                    
+                    // 1.5 秒後恢復原狀
+                    setTimeout(() => {
+                        streetViewCoordBox.innerHTML = originalText;
+                        streetViewCoordBox.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+                    }, 1500);
+                });
+            });
+
+            // 共用更新函數
             function updateLocationData(lat, lng, isStreetView = false) {
                 const locationObj = { lat: lat, lng: lng };
                 
-                // 如果不是在街景模式，才需要移動一般地圖的圖釘
                 if (!isStreetView) {
                     map.panTo(locationObj);
                     marker.setPosition(locationObj);
                 }
 
-                // 更新輸入框
-                document.getElementById('coordInput').value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-                document.getElementById('quickSelect').selectedIndex = 0; // 重置快速選單
+                const displayCoords = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+                document.getElementById('coordInput').value = displayCoords;
+                document.getElementById('quickSelect').selectedIndex = 0;
 
-                // 觸發海拔與天氣查詢
+                // 如果在街景模式下，同步更新方框內的文字
+                if (isStreetView) {
+                    streetViewCoordBox.innerHTML = `📍 目前座標: ${displayCoords} (點擊複製)`;
+                    streetViewCoordBox.dataset.rawCoords = displayCoords; // 隱藏屬性，儲存要複製的乾淨字串
+                }
+
                 getElevation(locationObj);
                 getWeather(lat, lng);
             }
 
-            // 1. 監聽【滑鼠左鍵】點擊地圖
+            // 監聽左鍵點擊
             map.addListener("click", (mapsMouseEvent) => {
-                const lat = mapsMouseEvent.latLng.lat();
-                const lng = mapsMouseEvent.latLng.lng();
-                updateLocationData(lat, lng);
+                updateLocationData(mapsMouseEvent.latLng.lat(), mapsMouseEvent.latLng.lng());
             });
 
-            // 2. 🌟 新增：監聽【滑鼠右鍵】點擊地圖
+            // 監聽右鍵點擊
             map.addListener("rightclick", (mapsMouseEvent) => {
-                const lat = mapsMouseEvent.latLng.lat();
-                const lng = mapsMouseEvent.latLng.lng();
-                updateLocationData(lat, lng);
+                updateLocationData(mapsMouseEvent.latLng.lat(), mapsMouseEvent.latLng.lng());
             });
 
-            // 3. 🌟 新增：監聽【街景/全景模式】的位置移動
-            const panorama = map.getStreetView();
+            // 🌟 4. 監聽街景「可見度」改變 (顯示/隱藏方框)
+            panorama.addListener("visible_changed", () => {
+                if (panorama.getVisible()) {
+                    streetViewCoordBox.style.display = 'block'; // 進入街景時顯示
+                } else {
+                    streetViewCoordBox.style.display = 'none';  // 離開街景時隱藏
+                }
+            });
+
+            // 🌟 5. 監聽街景「位置」改變
             panorama.addListener("position_changed", () => {
                 const currentPos = panorama.getPosition();
                 if (currentPos) {
-                    const lat = currentPos.lat();
-                    const lng = currentPos.lng();
-                    // 傳入 true 表示現在是街景模式，不要移動地圖圖釘以免干擾畫面
-                    updateLocationData(lat, lng, true); 
+                    updateLocationData(currentPos.lat(), currentPos.lng(), true);
                 }
             });
         }
+
+        // --- 以下為解析與 API 呼叫邏輯 (與先前相同) ---
 
         function parseCoordinates(input) {
             const dmsRegex = /(\d+)[°\s]+(\d+)['’\s]+([\d\.]+)[″"”\s]+([NSEW])/gi;
@@ -195,7 +241,7 @@
                 return;
             }
 
-            map.panTo(location); map.setZoom(15); // 將縮放比例拉近一點 (Zoom:15)，看得更清楚
+            map.panTo(location); map.setZoom(15);
             marker.setPosition(location);
             getElevation(location); getWeather(location.lat, location.lng);
         }
