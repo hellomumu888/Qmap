@@ -81,7 +81,7 @@
 </head>
 <body>
 
-    <h2>📍 座標環境查詢系統 v0.99b</h2>
+    <h2>📍 座標環境查詢系統</h2>
 
     <details class="custom-manager">
         <summary>⚙️ 新增 / 管理我的自訂地點</summary>
@@ -129,8 +129,7 @@
         <div id="info-panel">
             
             <div class="share-section">
-                <button class="share-btn line-btn" onclick="shareToLine()">💬 分享至 LINE</button>
-                <button class="share-btn native-btn" onclick="shareNative()">📲 更多分享 (Messenger/IG)</button>
+                <button class="share-btn native-btn" onclick="shareNative()">📲 分享</button>
             </div>
 
             <div class="info-section">
@@ -240,7 +239,7 @@
                 }).catch(console.error);
             } else {
                 navigator.clipboard.writeText(mapUrl).then(() => {
-                    alert('您的裝置不支援原生分享面板。\nGoogle Maps 連結已為您複製，您可以直接貼上至 Messenger 或 IG！');
+                    alert('您的裝置不支援原生分享面板。\nGoogle Maps 連結已為您複製');
                 });
             }
         }
@@ -489,7 +488,7 @@
     </script>
 
     <script async
-        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAnysqIbMI4A13sjayaJEW1UmyyQef-xMw&callback=initMap">
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAnysqIbMI4A13sjayaJEW1UmyyQef-xM&callback=initMap">
     </script>
 </body>
 </html>
