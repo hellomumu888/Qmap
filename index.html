@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>座標查詢：地圖、海拔與天氣 (終極街景版)</title>
+    <title>座標查詢：地圖、海拔與天氣 (完整分類選單版)</title>
     <style>
         /* 基礎設定 */
         * { box-sizing: border-box; }
@@ -13,6 +13,10 @@
         /* 搜尋區塊與選單 */
         .search-box { display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 20px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); flex-wrap: wrap; }
         select { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; background-color: #fdfdfd; cursor: pointer; }
+        /* 讓 optgroup 的文字變粗體，更容易辨識 */
+        optgroup { font-weight: bold; color: #4285F4; }
+        option { color: #333; }
+        
         input { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; width: 450px; max-width: 100%; }
         button { padding: 10px 20px; background-color: #4285F4; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; transition: background-color 0.3s; white-space: nowrap; }
         button:hover { background-color: #3367D6; }
@@ -41,7 +45,7 @@
         .hourly-item div { margin: 3px 0; }
         .error { color: red; font-weight: bold; }
 
-        /* 🌟 新增：街景模式複製座標框的樣式 */
+        /* 街景模式複製座標框的樣式 */
         #street-view-coord-box {
             background-color: rgba(0, 0, 0, 0.7);
             color: white;
@@ -53,7 +57,7 @@
             cursor: pointer;
             box-shadow: 0 2px 6px rgba(0,0,0,0.3);
             transition: background-color 0.2s;
-            display: none; /* 預設隱藏 */
+            display: none;
             z-index: 1000;
         }
         #street-view-coord-box:hover {
@@ -74,17 +78,29 @@
 </head>
 <body>
 
-    <h2>📍 座標環境查詢系統 v.098</h2>
+    <h2>📍 座標環境查詢系統 v0.99</h2>
 
     <div class="search-box">
         <select id="quickSelect" onchange="handleQuickSelect()">
             <option value="">快速選擇地點...</option>
-            <option value="24°22'12.8&quot;N 120°47'57.5&quot;E">大彎道</option>
-            <option value="24°22'45.5&quot;N 120°46'04.5&quot;E">木材場</option>
-            <option value="24°22'10.6&quot;N 120°45'31.4&quot;E">雅聞</option>
-            <option value="24°23'12.8&quot;N 120°48'42.5&quot;E">薑麻園</option>
-            <option value="24°21'25.8&quot;N 120°45'32.3&quot;E">觀音寺</option>
-            <option value="24°26'54.1&quot;N 120°47'27.3&quot;E">銅鑼慈惠寺</option>
+            
+            <optgroup label="北部">
+                <option value="24°51'43.6&quot;N 121°09'51.6&quot;E">大北坑</option>
+                <option value="24°41'54.1&quot;N 121°11'28.6&quot;E">內灣河堤</option>
+                <option value="24°40'22.6&quot;N 121°17'14.2&quot;E">馬美彎道</option>
+                <option value="24°47'07.5&quot;N 121°16'37.6&quot;E">桃源仙谷</option>
+                <option value="24°49'29.2&quot;N 121°17'18.7&quot;E">湳仔溝</option>
+                <option value="24°47'30.9&quot;N 121°12'12.5&quot;E">藥師佛禪寺</option>
+            </optgroup>
+            
+            <optgroup label="中部">
+                <option value="24°22'12.8&quot;N 120°47'57.5&quot;E">大彎道</option>
+                <option value="24°22'45.5&quot;N 120°46'04.5&quot;E">木材場</option>
+                <option value="24°22'10.6&quot;N 120°45'31.4&quot;E">雅聞</option>
+                <option value="24°23'12.8&quot;N 120°48'42.5&quot;E">薑麻園</option>
+                <option value="24°21'25.8&quot;N 120°45'32.3&quot;E">觀音寺</option>
+                <option value="24°26'54.1&quot;N 120°47'27.3&quot;E">銅鑼慈惠寺</option>
+            </optgroup>
         </select>
         
         <input type="text" id="coordInput" placeholder="輸入座標，或直接點擊下方地圖">
@@ -124,24 +140,20 @@
             marker = new google.maps.Marker({ position: defaultLoc, map: map });
             elevator = new google.maps.ElevationService();
 
-            // 🌟 1. 建立街景專用的浮動複製方框
             streetViewCoordBox = document.createElement('div');
             streetViewCoordBox.id = 'street-view-coord-box';
             streetViewCoordBox.title = '點擊即可複製座標';
             
-            // 🌟 2. 將方框加入到街景模式的「頂部中央」控制列
             const panorama = map.getStreetView();
             panorama.controls[google.maps.ControlPosition.TOP_CENTER].push(streetViewCoordBox);
 
-            // 🌟 3. 實作點擊複製功能
             streetViewCoordBox.addEventListener('click', () => {
                 const textToCopy = streetViewCoordBox.dataset.rawCoords;
                 navigator.clipboard.writeText(textToCopy).then(() => {
                     const originalText = streetViewCoordBox.innerHTML;
                     streetViewCoordBox.innerHTML = '✅ 座標已複製！';
-                    streetViewCoordBox.style.backgroundColor = '#4285F4'; // 變換顏色給予視覺回饋
+                    streetViewCoordBox.style.backgroundColor = '#4285F4';
                     
-                    // 1.5 秒後恢復原狀
                     setTimeout(() => {
                         streetViewCoordBox.innerHTML = originalText;
                         streetViewCoordBox.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
@@ -149,7 +161,6 @@
                 });
             });
 
-            // 共用更新函數
             function updateLocationData(lat, lng, isStreetView = false) {
                 const locationObj = { lat: lat, lng: lng };
                 
@@ -162,36 +173,31 @@
                 document.getElementById('coordInput').value = displayCoords;
                 document.getElementById('quickSelect').selectedIndex = 0;
 
-                // 如果在街景模式下，同步更新方框內的文字
                 if (isStreetView) {
                     streetViewCoordBox.innerHTML = `📍 目前座標: ${displayCoords} (點擊複製)`;
-                    streetViewCoordBox.dataset.rawCoords = displayCoords; // 隱藏屬性，儲存要複製的乾淨字串
+                    streetViewCoordBox.dataset.rawCoords = displayCoords;
                 }
 
                 getElevation(locationObj);
                 getWeather(lat, lng);
             }
 
-            // 監聽左鍵點擊
             map.addListener("click", (mapsMouseEvent) => {
                 updateLocationData(mapsMouseEvent.latLng.lat(), mapsMouseEvent.latLng.lng());
             });
 
-            // 監聽右鍵點擊
             map.addListener("rightclick", (mapsMouseEvent) => {
                 updateLocationData(mapsMouseEvent.latLng.lat(), mapsMouseEvent.latLng.lng());
             });
 
-            // 🌟 4. 監聽街景「可見度」改變 (顯示/隱藏方框)
             panorama.addListener("visible_changed", () => {
                 if (panorama.getVisible()) {
-                    streetViewCoordBox.style.display = 'block'; // 進入街景時顯示
+                    streetViewCoordBox.style.display = 'block';
                 } else {
-                    streetViewCoordBox.style.display = 'none';  // 離開街景時隱藏
+                    streetViewCoordBox.style.display = 'none';
                 }
             });
 
-            // 🌟 5. 監聽街景「位置」改變
             panorama.addListener("position_changed", () => {
                 const currentPos = panorama.getPosition();
                 if (currentPos) {
@@ -199,8 +205,6 @@
                 }
             });
         }
-
-        // --- 以下為解析與 API 呼叫邏輯 (與先前相同) ---
 
         function parseCoordinates(input) {
             const dmsRegex = /(\d+)[°\s]+(\d+)['’\s]+([\d\.]+)[″"”\s]+([NSEW])/gi;
