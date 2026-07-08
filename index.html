@@ -81,7 +81,7 @@
 </head>
 <body>
 
-    <h2>📍 座標查詢：地圖、海拔與天氣 v0.99c</h2>
+    <h2>📍 座標查詢：地圖、海拔與天氣 v1.0.0</h2>
 
     <details class="custom-manager">
         <summary>⚙️ 新增 / 管理我的自訂地點</summary>
@@ -90,17 +90,13 @@
             <input type="text" id="newCoord" placeholder="座標支援小數或度分秒 (含雙引號)">
             <button onclick="addCustomLocation()">➕ 加入選單</button>
         </div>
-        <ul id="customLocList" class="custom-list">
-            </ul>
+        <ul id="customLocList" class="custom-list"></ul>
     </details>
 
     <div class="search-box">
         <select id="quickSelect" onchange="handleQuickSelect()">
             <option value="">快速選擇地點...</option>
-            
-            <optgroup label="⭐ 我的專屬地點" id="myCustomGroup">
-                </optgroup>
-            
+            <optgroup label="⭐ 我的專屬地點" id="myCustomGroup"></optgroup>
             <optgroup label="北部">
                 <option value="24°51'43.6&quot;N 121°09'51.6&quot;E">大北坑</option>
                 <option value="24°41'54.1&quot;N 121°11'28.6&quot;E">內灣河堤</option>
@@ -109,7 +105,6 @@
                 <option value="24°49'29.2&quot;N 121°17'18.7&quot;E">湳仔溝</option>
                 <option value="24°47'30.9&quot;N 121°12'12.5&quot;E">藥師佛禪寺</option>
             </optgroup>
-            
             <optgroup label="中部">
                 <option value="24°22'12.8&quot;N 120°47'57.5&quot;E">大彎道</option>
                 <option value="24°22'45.5&quot;N 120°46'04.5&quot;E">木材場</option>
@@ -119,7 +114,6 @@
                 <option value="24°26'54.1&quot;N 120°47'27.3&quot;E">銅鑼慈惠寺</option>
             </optgroup>
         </select>
-        
         <input type="text" id="coordInput" placeholder="輸入座標，或直接點擊下方地圖">
         <button onclick="searchLocation()">查詢位置</button>
     </div>
@@ -127,16 +121,14 @@
     <div class="main-container">
         <div id="map"></div>
         <div id="info-panel">
-            
             <div class="share-section">
-                <button class="share-btn native-btn" onclick="shareNative()">（〜^∇^)〜 分享</button>
+                <button class="share-btn line-btn" onclick="shareToLine()">💬 分享至 LINE</button>
+                <button class="share-btn native-btn" onclick="shareNative()">📲 更多分享 (Messenger/IG)</button>
             </div>
-
             <div class="info-section">
                 <h3>⛰️ 海拔資訊</h3>
                 <div id="elevation-data">請輸入座標或點擊地圖以查詢...</div>
             </div>
-            
             <div class="info-section">
                 <h3>🌤️ 一週天氣預測 (點擊展開)</h3>
                 <div id="weather-data">請輸入座標或點擊地圖以查詢...</div>
@@ -148,8 +140,8 @@
         let map; let marker; let elevator; let streetViewCoordBox;
         let currentShareLat = 24.357; 
         let currentShareLng = 120.759;
+        let isInitialLoad = true; // 標記是否為初次載入
 
-        // 管理 localStorage 自訂地點
         let myLocations = JSON.parse(localStorage.getItem('myCustomLocations')) || [];
 
         function renderCustomLocations() {
@@ -166,18 +158,15 @@
             }
 
             myLocations.forEach((loc, index) => {
-                // 🌟 關鍵修復：將單雙引號轉換為 HTML 實體 (Escape)，避免破壞 HTML 屬性
                 const safeCoord = loc.coord.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-                const safeName = loc.name.replace(/</g, '&lt;').replace(/>/g, '&gt;'); // 防 XSS
+                const safeName = loc.name.replace(/</g, '&lt;').replace(/>/g, '&gt;'); 
 
-                // 更新管理清單
                 listEl.innerHTML += `
                     <li>
                         <span><strong>${safeName}</strong> - ${safeCoord}</span>
                         <button class="delete-btn" onclick="deleteCustomLocation(${index})">刪除</button>
                     </li>
                 `;
-                // 更新下拉選單
                 groupEl.innerHTML += `<option value="${safeCoord}">${safeName}</option>`;
             });
         }
@@ -187,22 +176,16 @@
             const coord = document.getElementById('newCoord').value.trim();
 
             if (!name || !coord) {
-                alert("名稱與座標都不能為空！");
-                return;
+                alert("名稱與座標都不能為空！"); return;
             }
-
-            // 驗證座標格式是否合法 (利用我們寫好的 parse 函數)
             if (!parseCoordinates(coord)) {
-                alert("無法解析座標！請檢查格式是否正確。");
-                return;
+                alert("無法解析座標！請檢查格式是否正確。"); return;
             }
 
             myLocations.push({ name: name, coord: coord });
             localStorage.setItem('myCustomLocations', JSON.stringify(myLocations));
-            
             document.getElementById('newName').value = '';
             document.getElementById('newCoord').value = '';
-            
             renderCustomLocations();
             alert(`已成功將「${name}」加入專屬選單！`);
         }
@@ -215,17 +198,17 @@
             }
         }
 
-        // 頁面載入時先渲染一次自訂清單
         document.addEventListener("DOMContentLoaded", renderCustomLocations);
 
-        // 分享功能邏輯
+        // 🌟 更新：獲取當前網頁的 URL，並附上 coord 參數
         function getShareUrl() {
-            return `https://www.google.com/maps?q=${currentShareLat},${currentShareLng}`;
+            const baseUrl = window.location.origin + window.location.pathname;
+            return `${baseUrl}?coord=${currentShareLat},${currentShareLng}`;
         }
 
         function shareToLine() {
             const mapUrl = getShareUrl();
-            const text = encodeURIComponent(`快來看看這個地點！\n`);
+            const text = encodeURIComponent(`快來看看這個地點的天氣與海拔！\n`);
             window.open(`https://line.me/R/msg/text/?${text}${encodeURIComponent(mapUrl)}`, '_blank');
         }
 
@@ -233,13 +216,13 @@
             const mapUrl = getShareUrl();
             if (navigator.share) {
                 navigator.share({
-                    title: '分享座標位置',
-                    text: '這是我在地圖上找到的地點，來看看吧：',
+                    title: '座標環境查詢系統',
+                    text: '這是我查到的地點環境資訊，來看看吧：',
                     url: mapUrl
                 }).catch(console.error);
             } else {
                 navigator.clipboard.writeText(mapUrl).then(() => {
-                    alert('您的裝置不支援原生分享面板。\nGoogle Maps 連結已為您複製');
+                    alert('Google Maps 連結已為您複製，您可以直接貼上至 Messenger 或 IG！');
                 });
             }
         }
@@ -262,7 +245,6 @@
             streetViewCoordBox = document.createElement('div');
             streetViewCoordBox.id = 'street-view-coord-box';
             streetViewCoordBox.title = '點擊即可複製座標';
-            
             const panorama = map.getStreetView();
             panorama.controls[google.maps.ControlPosition.TOP_CENTER].push(streetViewCoordBox);
 
@@ -272,7 +254,6 @@
                     const originalText = streetViewCoordBox.innerHTML;
                     streetViewCoordBox.innerHTML = '✅ 座標已複製！';
                     streetViewCoordBox.style.backgroundColor = '#4285F4';
-                    
                     setTimeout(() => {
                         streetViewCoordBox.innerHTML = originalText;
                         streetViewCoordBox.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
@@ -282,7 +263,6 @@
 
             function updateLocationData(lat, lng, isStreetView = false) {
                 const locationObj = { lat: lat, lng: lng };
-                
                 currentShareLat = lat;
                 currentShareLng = lng;
 
@@ -302,33 +282,46 @@
 
                 getElevation(locationObj);
                 getWeather(lat, lng);
+                
+                // 🌟 更新：自動將目前座標更新到網址列，但不重整網頁 (利用 History API)
+                if (!isInitialLoad) {
+                    const newUrl = `${window.location.origin}${window.location.pathname}?coord=${displayCoords}`;
+                    window.history.replaceState({}, '', newUrl);
+                }
             }
 
             map.addListener("click", (mapsMouseEvent) => {
+                isInitialLoad = false;
                 updateLocationData(mapsMouseEvent.latLng.lat(), mapsMouseEvent.latLng.lng());
             });
 
             map.addListener("rightclick", (mapsMouseEvent) => {
+                isInitialLoad = false;
                 updateLocationData(mapsMouseEvent.latLng.lat(), mapsMouseEvent.latLng.lng());
             });
 
             panorama.addListener("visible_changed", () => {
-                if (panorama.getVisible()) {
-                    streetViewCoordBox.style.display = 'block';
-                } else {
-                    streetViewCoordBox.style.display = 'none';
-                }
+                streetViewCoordBox.style.display = panorama.getVisible() ? 'block' : 'none';
             });
 
             panorama.addListener("position_changed", () => {
                 const currentPos = panorama.getPosition();
                 if (currentPos) {
+                    isInitialLoad = false;
                     updateLocationData(currentPos.lat(), currentPos.lng(), true);
                 }
             });
+
+            // 🌟 新增：地圖初始化完成後，檢查網址是否有傳遞 coord 參數
+            const urlParams = new URLSearchParams(window.location.search);
+            const coordParam = urlParams.get('coord');
+            if (coordParam) {
+                document.getElementById('coordInput').value = coordParam;
+                // 延遲執行以確保 API 完全準備好
+                setTimeout(() => { searchLocation(); }, 300);
+            }
         }
 
-        // 解析座標字串
         function parseCoordinates(input) {
             const dmsRegex = /(\d+)[°\s]+(\d+)['’\s]+([\d\.]+)[″"”\s]+([NSEW])/gi;
             let matches = [...input.matchAll(dmsRegex)];
@@ -360,6 +353,7 @@
         }
 
         function searchLocation() {
+            isInitialLoad = false;
             const coordStr = document.getElementById('coordInput').value;
             const location = parseCoordinates(coordStr);
 
@@ -374,6 +368,10 @@
             map.panTo(location); map.setZoom(15);
             marker.setPosition(location);
             getElevation(location); getWeather(location.lat, location.lng);
+            
+            // 🌟 更新網址列
+            const newUrl = `${window.location.origin}${window.location.pathname}?coord=${location.lat.toFixed(5)},${location.lng.toFixed(5)}`;
+            window.history.replaceState({}, '', newUrl);
         }
 
         function getElevation(location) {
@@ -405,7 +403,6 @@
                 const daily = data.daily;
                 const hourly = data.hourly;
                 let html = '';
-
                 const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
 
                 for (let i = 0; i < 7; i++) {
